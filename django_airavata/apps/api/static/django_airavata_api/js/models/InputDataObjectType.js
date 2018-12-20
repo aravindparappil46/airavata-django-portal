@@ -1,6 +1,6 @@
 import BaseModel from "./BaseModel";
 import DataType from "./DataType";
-import DependencyEvaluator from "./dependencies/DependencyEvaluator";
+import BooleanExpressionEvaluator from "./dependencies/BooleanExpressionEvaluator";
 import uuidv4 from "uuid/v4";
 import ValidatorFactory from "./validators/ValidatorFactory";
 
@@ -219,14 +219,13 @@ export default class InputDataObjectType extends BaseModel {
    */
   evaluateDependencies(inputValues) {
     if (Object.keys(this.editorDependencies).length > 0) {
-      const dependencyEvaluator = new DependencyEvaluator();
-      const dependencyEvaluations = dependencyEvaluator.evaluateDependencies(
-        inputValues,
-        this.editorDependencies
-      );
+      const booleanExpressionEvaluator = new BooleanExpressionEvaluator();
       // TODO: if show changes to false, set value to null? Save off current value to restore when shown again?
       if ("show" in dependencyEvaluations) {
-        this.show = dependencyEvaluations["show"];
+        this.show = booleanExpressionEvaluator.evaluate(
+          dependencyEvaluations.show,
+          inputValues
+        );
       }
     }
   }
