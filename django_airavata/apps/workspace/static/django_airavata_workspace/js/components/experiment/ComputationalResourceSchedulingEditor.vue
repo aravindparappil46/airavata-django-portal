@@ -10,7 +10,7 @@
                         :options="computeResourceOptions" required
                         @change="computeResourceChanged"
                         :state="getValidationState('resourceHostId')"
-                        :disabled="loading">
+                        :disabled="!computeResourceOptions || computeResourceOptions.length === 0">
                         <template slot="first">
                             <option :value="null" disabled>Select a Compute Resource</option>
                         </template>
@@ -35,7 +35,7 @@
 
 <script>
 import QueueSettingsEditor from './QueueSettingsEditor.vue'
-import {models, services} from 'django-airavata-api'
+import {errors, models, services, utils as apiUtils} from 'django-airavata-api'
 import {utils} from 'django-airavata-common-ui'
 
 export default {
@@ -60,9 +60,7 @@ export default {
             computeResources: {},
             applicationDeployments: [],
             selectedGroupResourceProfileData: null,
-            resourceHostId: null,
-            // TODO: replace this with Loading spinner, better mechanism
-            loadingCount: 0,
+            resourceHostId: this.value.resourceHostId,
         }
     },
     components: {
@@ -84,36 +82,27 @@ export default {
             computeResourceOptions.sort((a, b) => a.text.localeCompare(b.text));
             return computeResourceOptions;
         },
-        loading: function() {
-            return this.loadingCount > 0;
-        },
         selectedComputeResourcePolicy: function() {
-            if (this.selectedGroupResourceProfile === null) {
+            if (this.selectedGroupResourceProfileData === null) {
                 return null;
             }
-            return this.selectedGroupResourceProfile.computeResourcePolicies.find(crp => {
+            return this.selectedGroupResourceProfileData.computeResourcePolicies.find(crp => {
                 return crp.computeResourceId === this.localComputationalResourceScheduling.resourceHostId;
             });
         },
         batchQueueResourcePolicies: function() {
-            if (this.selectedGroupResourceProfile === null) {
+            if (this.selectedGroupResourceProfileData === null) {
                 return null;
             }
-            return this.selectedGroupResourceProfile.batchQueueResourcePolicies.filter(bqrp => {
+            return this.selectedGroupResourceProfileData.batchQueueResourcePolicies.filter(bqrp => {
                 return bqrp.computeResourceId === this.localComputationalResourceScheduling.resourceHostId;
             });
         },
-        selectedGroupResourceProfile: function() {
-            // Reload selectedGroupResourceProfile when group-resource-profile-id changes
-            if (this.selectedGroupResourceProfileData
-                    && this.selectedGroupResourceProfileData.groupResourceProfileId !== this.groupResourceProfileId) {
-                this.selectedGroupResourceProfileData = null;
-                this.loadGroupResourceProfile();
-            }
-            return this.selectedGroupResourceProfileData;
-        },
         appDeploymentId: function() {
-            if (!this.resourceHostId) {
+            // We'll only be able to figure out the appDeploymentId when a
+            // resourceHostId is selected and the application deployments are
+            // loaded
+            if (!this.resourceHostId || this.applicationDeployments.length === 0) {
                 return null;
             }
             // Find application deployment that corresponds to this compute resource
@@ -130,26 +119,36 @@ export default {
             this.emitValueChanged();
         },
         loadApplicationDeployments: function(appModuleId, groupResourceProfileId) {
-            this.loadingCount++;
-            services.ServiceFactory.service("ApplicationDeployments").list({appModuleId: appModuleId, groupResourceProfileId: groupResourceProfileId})
+            services.ApplicationDeploymentService.list({appModuleId: appModuleId, groupResourceProfileId: groupResourceProfileId}, {ignoreErrors: true})
                 .then(applicationDeployments => {
                     this.applicationDeployments = applicationDeployments;
                 })
-                .then(()=> {this.loadingCount--;}, () => {this.loadingCount--;});
+                .catch(error => {
+                  // Ignore unauthorized errors, force user to pick another GroupResourceProfile
+                  if (!errors.ErrorUtils.isUnauthorizedError(error)) {
+                    return Promise.reject(error);
+                  }
+                })
+                // Report all other error types
+                .catch(apiUtils.FetchUtils.reportError);
         },
         loadGroupResourceProfile: function() {
-            this.loadingCount++;
-            services.GroupResourceProfileService.retrieve({lookup: this.groupResourceProfileId})
+            services.GroupResourceProfileService.retrieve({lookup: this.groupResourceProfileId}, {ignoreErrors: true})
                 .then(groupResourceProfile => {
                     this.selectedGroupResourceProfileData = groupResourceProfile;
                 })
-                .then(()=> {this.loadingCount--;}, () => {this.loadingCount--;});
+                .catch(error => {
+                  // Ignore unauthorized errors, force user to pick a different GroupResourceProfile
+                  if (!errors.ErrorUtils.isUnauthorizedError(error)) {
+                    return Promise.reject(error);
+                  }
+                })
+                // Report all other error types
+                .catch(apiUtils.FetchUtils.reportError);
         },
         loadComputeResourceNames: function() {
-            this.loadingCount++;
-            services.ServiceFactory.service("ComputeResources").names()
+            services.ComputeResourceService.names()
                 .then(computeResourceNames => this.computeResources = computeResourceNames)
-                .then(()=> {this.loadingCount--;}, () => {this.loadingCount--;});
         },
         queueSettingsChanged: function() {
             // QueueSettingsEditor updates the full
@@ -175,10 +174,14 @@ export default {
             // computeResourceOptions, reset it to null
             if (this.resourceHostId !== null && !newOptions.find(opt => opt.value === this.resourceHostId)) {
                 this.resourceHostId = null;
+                this.computeResourceChanged(null);
             }
         },
         groupResourceProfileId: function(newGroupResourceProfileId) {
             this.loadApplicationDeployments(this.appModuleId, newGroupResourceProfileId);
+            if (this.selectedGroupResourceProfileData && this.selectedGroupResourceProfileData.groupResourceProfileId !== newGroupResourceProfileId) {
+              this.loadGroupResourceProfile();
+            }
         }
     }
 }

@@ -54,9 +54,10 @@ class GroupViewSet(APIBackedViewSet):
 
         class GroupResultsIterator(APIResultIterator):
             def get_results(self, limit=-1, offset=0):
-                groups = view.request.profile_service['group_manager'].getGroups(
-                    view.authz_token)
-                return groups[offset:offset + limit] if groups else []
+                group_manager = view.request.profile_service['group_manager']
+                groups = group_manager.getGroups(view.authz_token)
+                end = offset + limit if limit > 0 else len(groups)
+                return groups[offset:end] if groups else []
 
         return GroupResultsIterator()
 
@@ -159,15 +160,7 @@ class ExperimentViewSet(APIBackedViewSet):
         experiment = serializer.save(
             gatewayId=self.gateway_id,
             userName=self.username)
-        experiment.userConfigurationData.storageId = \
-            settings.GATEWAY_DATA_STORE_RESOURCE_ID
-        # Set the experimentDataDir
-        project = self.request.airavata_client.getProject(
-            self.authz_token, experiment.projectId)
-        exp_dir = datastore.get_experiment_dir(self.username,
-                                               project.name,
-                                               experiment.experimentName)
-        experiment.userConfigurationData.experimentDataDir = exp_dir
+        self._set_storage_id_and_data_dir(experiment)
         experiment_id = self.request.airavata_client.createExperiment(
             self.authz_token, self.gateway_id, experiment)
         experiment.experimentId = experiment_id
@@ -176,8 +169,27 @@ class ExperimentViewSet(APIBackedViewSet):
         experiment = serializer.save(
             gatewayId=self.gateway_id,
             userName=self.username)
+        # The project or exp name may have changed, so update the exp data dir
+        self._set_storage_id_and_data_dir(experiment)
         self.request.airavata_client.updateExperiment(
             self.authz_token, experiment.experimentId, experiment)
+        # Process experiment._removed_input_files, removing them from storage
+        for removed_input_file in experiment._removed_input_files:
+            data_product = self.request.airavata_client.getDataProduct(
+                self.authz_token, removed_input_file)
+            datastore.delete(data_product)
+
+    def _set_storage_id_and_data_dir(self, experiment):
+        # Storage ID
+        experiment.userConfigurationData.storageId = \
+            settings.GATEWAY_DATA_STORE_RESOURCE_ID
+        # Create experiment dir and set it on model
+        project = self.request.airavata_client.getProject(
+            self.authz_token, experiment.projectId)
+        exp_dir = datastore.get_experiment_dir(self.username,
+                                               project.name,
+                                               experiment.experimentName)
+        experiment.userConfigurationData.experimentDataDir = exp_dir
 
     @detail_route(methods=['post'])
     def launch(self, request, experiment_id=None):
@@ -195,6 +207,81 @@ class ExperimentViewSet(APIBackedViewSet):
         serializer = serializers.JobSerializer(
             jobs, many=True, context={'request': request})
         return Response(serializer.data)
+
+    @detail_route(methods=['post'])
+    def clone(self, request, experiment_id=None):
+
+        # figure what project to clone into
+        experiment = self.request.airavata_client.getExperiment(
+            self.authz_token, experiment_id)
+        project_id = self._get_writeable_project(experiment)
+
+        # clone experiment
+        cloned_experiment_id = request.airavata_client.cloneExperiment(
+            self.authz_token, experiment_id,
+            "Clone of {}".format(experiment.experimentName), project_id)
+        cloned_experiment = request.airavata_client.getExperiment(
+            self.authz_token, cloned_experiment_id)
+
+        # Create a copy of the experiment input files
+        self._copy_cloned_experiment_input_uris(cloned_experiment)
+
+        self._set_storage_id_and_data_dir(cloned_experiment)
+        request.airavata_client.updateExperiment(
+            self.authz_token, cloned_experiment.experimentId, cloned_experiment
+        )
+        serializer = self.serializer_class(
+            cloned_experiment, context={'request': request})
+        return Response(serializer.data)
+
+    def _get_writeable_project(self, experiment):
+        # figure what project to clone into:
+        # 1) project of this experiment if writeable
+        # 2) else, first writeable project
+        project_id = experiment.projectId
+        can_write = self.request.airavata_client.userHasAccess(
+            self.authz_token, project_id, ResourcePermissionType.WRITE)
+        if not can_write:
+            user_projects = self.request.airavata_client.getUserProjects(
+                self.authz_token, self.gateway_id, self.username, -1, 0)
+            for user_project in user_projects:
+                can_write = self.request.airavata_client.userHasAccess(
+                    self.authz_token, user_project.projectID,
+                    ResourcePermissionType.WRITE)
+                if can_write:
+                    project_id = user_project.projectID
+                    break
+            if not can_write:
+                raise Exception(
+                    "Could not find writeable project for user {} in "
+                    "gateway {}".format(self.username, self.gateway_id))
+        return project_id
+
+    def _copy_cloned_experiment_input_uris(self, cloned_experiment):
+        # update the experimentInputs of type URI, copying files in data store
+        request = self.request
+        target_project = request.airavata_client.getProject(
+            self.authz_token, cloned_experiment.projectId)
+        for experiment_input in cloned_experiment.experimentInputs:
+            if experiment_input.type == DataType.URI:
+                source_data_product = request.airavata_client.getDataProduct(
+                    self.authz_token, experiment_input.value)
+                try:
+                    copied_data_product = datastore.copy(
+                        self.username,
+                        target_project.name,
+                        cloned_experiment.experimentName,
+                        source_data_product)
+                    data_product_uri = \
+                        request.airavata_client.registerDataProduct(
+                            self.authz_token, copied_data_product)
+                    experiment_input.value = data_product_uri
+                except ObjectDoesNotExist as odne:
+                    log.warning("Could not find file for source data "
+                                "product {}".format(source_data_product))
+                    log.warning("Setting cloned input {} to null".format(
+                        experiment_input.name))
+                    experiment_input.value = None
 
 
 class ExperimentSearchViewSet(mixins.ListModelMixin, GenericAPIBackedViewSet):
@@ -391,7 +478,6 @@ class ApplicationInterfaceViewSet(APIBackedViewSet):
 class ApplicationDeploymentViewSet(APIBackedViewSet):
     serializer_class = serializers.ApplicationDeploymentDescriptionSerializer
     lookup_field = 'app_deployment_id'
-    lookup_value_regex = '[^/]+'
 
     def get_list(self):
         app_module_id = self.request.query_params.get('appModuleId', None)
@@ -456,7 +542,6 @@ class ComputeResourceViewSet(mixins.RetrieveModelMixin,
                              GenericAPIBackedViewSet):
     serializer_class = serializers.ComputeResourceDescriptionSerializer
     lookup_field = 'compute_resource_id'
-    lookup_value_regex = '[^/]+'
 
     def get_instance(self, lookup_value, format=None):
         return self.request.airavata_client.getComputeResource(
@@ -611,6 +696,19 @@ class LocalDataMovementView(APIView):
                 instance=data_movement).data)
 
 
+class DataProductView(APIView):
+
+    serializer_class = serializers.DataProductSerializer
+
+    def get(self, request, format=None):
+        data_product_uri = request.query_params['product-uri']
+        data_product = request.airavata_client.getDataProduct(
+            request.authz_token, data_product_uri)
+        serializer = self.serializer_class(
+            data_product, context={'request': request})
+        return Response(serializer.data)
+
+
 @login_required
 def upload_input_file(request):
     try:
@@ -715,7 +813,6 @@ class SharedEntityViewSet(mixins.RetrieveModelMixin,
                           GenericAPIBackedViewSet):
     serializer_class = serializers.SharedEntitySerializer
     lookup_field = 'entity_id'
-    lookup_value_regex = '[^/]+'
 
     def get_instance(self, lookup_value):
         users = {}
@@ -921,7 +1018,6 @@ class CredentialSummaryViewSet(APIBackedViewSet):
 class GatewayResourceProfileViewSet(APIBackedViewSet):
     serializer_class = serializers.GatewayResourceProfileSerializer
     lookup_field = 'gateway_id'
-    lookup_value_regex = '[^/]+'
 
     def get_list(self):
         return self.request.airavata_client.getAllGatewayResourceProfiles(
@@ -963,7 +1059,6 @@ class StorageResourceViewSet(mixins.RetrieveModelMixin,
                              GenericAPIBackedViewSet):
     serializer_class = serializers.StorageResourceSerializer
     lookup_field = 'storage_resource_id'
-    lookup_value_regex = '[^/]+'
 
     def get_instance(self, lookup_value, format=None):
         return self.request.airavata_client.getStorageResource(
@@ -980,7 +1075,6 @@ class StorageResourceViewSet(mixins.RetrieveModelMixin,
 class StoragePreferenceViewSet(APIBackedViewSet):
     serializer_class = serializers.StoragePreferenceSerializer
     lookup_field = 'storage_resource_id'
-    lookup_value_regex = '[^/]+'
 
     def get_list(self):
         return self.request.airavata_client.getAllGatewayStoragePreferences(
@@ -1009,3 +1103,27 @@ class StoragePreferenceViewSet(APIBackedViewSet):
     def perform_destroy(self, instance):
         self.request.airavata_client.deleteGatewayStoragePreference(
             self.authz_token, settings.GATEWAY_ID, instance.storageResourceId)
+
+
+class ParserViewSet(mixins.CreateModelMixin,
+                    mixins.RetrieveModelMixin,
+                    mixins.UpdateModelMixin,
+                    mixins.ListModelMixin,
+                    GenericAPIBackedViewSet):
+    serializer_class = serializers.ParserSerializer
+    lookup_field = 'parser_id'
+
+    def get_list(self):
+        return self.request.airavata_client.listAllParsers(self.authz_token, settings.GATEWAY_ID)
+
+    def get_instance(self, lookup_value):
+        return self.request.airavata_client.getParser(
+            self.authz_token, lookup_value, settings.GATEWAY_ID)
+
+    def perform_create(self, serializer):
+        parser = serializer.save()
+        self.request.airavata_client.saveParser(self.authz_token, parser)
+
+    def perform_update(self, serializer):
+        parser = serializer.save()
+        self.request.airavata_client.saveParser(self.authz_token, parser)

@@ -3,7 +3,6 @@
         :state="validationState" :feedback-messages="validationFeedback">
         <component :is="inputEditorComponentName"
             :id="inputEditorComponentId"
-            :experiment="experiment"
             :experiment-input="experimentInput"
             v-model="data"
             @invalid="recordInvalidInputEditorValue"
@@ -13,6 +12,7 @@
 </template>
 
 <script>
+import CheckboxInputEditor from "./CheckboxInputEditor.vue";
 import FileInputEditor from './FileInputEditor.vue'
 import InputEditorFormGroup from './InputEditorFormGroup.vue'
 import RadioButtonInputEditor from './RadioButtonInputEditor.vue'
@@ -20,35 +20,38 @@ import StringInputEditor from './StringInputEditor.vue'
 import TextareaInputEditor from './TextareaInputEditor.vue'
 
 import {models} from 'django-airavata-api'
+import { mixins, utils } from 'django-airavata-common-ui';
 
 export default {
     name: 'input-editor-container',
+    mixins: [mixins.VModelMixin],
     props: {
-        value: {
-            required: true,
-        },
-        experiment: {
-            type: models.Experiment,
-            required: true,
-        },
         experimentInput: {
             type: models.InputDataObjectType,
             required: true,
         },
     },
     components: {
+        CheckboxInputEditor,
         FileInputEditor,
         InputEditorFormGroup,
         RadioButtonInputEditor,
         StringInputEditor,
         TextareaInputEditor,
     },
+    created() {
+      if (!this.show) {
+        this.handleHidingInput();
+      }
+    },
     data: function() {
         return {
-            data: this.value,
             state: null,
             feedbackMessages: [],
             inputHasBegun: false,
+            // Store the current value when hiding input so we can restore it when shown again
+            oldValue: null,
+            show: this.experimentInput.show
         }
     },
     computed: {
@@ -67,7 +70,7 @@ export default {
             return 'string-input-editor';
         },
         inputEditorComponentId: function() {
-            return this.experimentInput.name;
+            return utils.sanitizeHTMLId(this.experimentInput.name);
         },
         validationFeedback: function() {
             // Only display validation feedback after the user has provided
@@ -81,7 +84,7 @@ export default {
     },
     methods: {
         recordValidInputEditorValue: function() {
-            this.state = null;
+            this.state = 'valid';
             this.$emit('valid');
         },
         recordInvalidInputEditorValue: function(feedbackMessages) {
@@ -91,8 +94,35 @@ export default {
         },
         valueChanged: function() {
             this.inputHasBegun = true;
-            this.$emit('input', this.data);
         },
+        handleHidingInput: function() {
+          this.oldValue = this.data;
+          this.data = null;
+        },
+        handleShowingInput: function() {
+          if (this.oldValue !== null) {
+            this.data = this.oldValue;
+          }
+        }
+    },
+    watch: {
+      // This is a bit of a workaround for testing purposes. Watcher for
+      // "experimentInput.show" does not get triggered during unit test so sync it
+      // to "show" data variable and then in the unit test manipulate "show"
+      // directly.
+      "experimentInput.show": function(newValue) {
+        this.show = newValue;
+      },
+      "show": function(newValue, oldValue) {
+        // Hiding
+        if (oldValue && !newValue) {
+          this.handleHidingInput();
+        }
+        // Showing
+        else if (newValue && !oldValue) {
+          this.handleShowingInput();
+        }
+      }
     }
 }
 </script>

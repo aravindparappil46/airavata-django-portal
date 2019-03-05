@@ -2,7 +2,7 @@
   <b-card>
     <div class="d-flex align-items-center" slot="header">
       <div v-if="!readonly" class="drag-handle mr-1 text-muted">
-        <font-awesome-icon icon="grip-vertical" />
+        <i class="fa fa-grip-vertical"></i>
         <span class="sr-only">Drag handle for reordering</span>
       </div>
       <div class="mr-auto">Input Field: {{ data.name }}</div>
@@ -90,7 +90,7 @@ export default {
   },
   computed: {
     inputTypeOptions() {
-      return models.DataType.values.map(dataType => {
+      return models.InputDataObjectType.VALID_DATA_TYPES.map(dataType => {
         return {
           value: dataType,
           text: dataType.name

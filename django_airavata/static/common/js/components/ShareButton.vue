@@ -1,5 +1,5 @@
 <template>
-  <div class="share-button">
+  <div class="share-button btn-container">
     <b-button :variant="'outline-primary'" :title="title" :disabled="!shareButtonEnabled" @click="openSharingSettingsModal">
       Share
       <b-badge>{{ totalCount }}</b-badge>
@@ -68,9 +68,11 @@ export default {
         : null;
     },
     filteredGroupPermissions: function() {
-      return this.localSharedEntity && this.localSharedEntity.groupPermissions
-        ? this.localSharedEntity.groupPermissions
-        : [];
+      if (this.localSharedEntity && this.localSharedEntity.groupPermissions) {
+        return this.disallowEditingAdminGroups ? this.localSharedEntity.nonAdminGroupPermissions : this.localSharedEntity.groupPermissions;
+      } else {
+        return [];
+      }
     },
     groupNames: function() {
       return this.filteredGroupPermissions.map(
@@ -139,7 +141,7 @@ export default {
       });
     },
     loadSharedEntity(entityId) {
-      return services.SharedEntityService.retrieve({ lookup: this.entityId });
+      return services.SharedEntityService.retrieve({ lookup: entityId });
     },
     /**
      * Merge the persisted SharedEntity with the local SharedEntity
@@ -154,7 +156,7 @@ export default {
         this.emitSavedEvent();
       });
     },
-    saveSharedEntity: function(event) {
+    saveSharedEntity: function() {
       // If we don't have an entityId we can't create a SharedEntity. Instead,
       // we'll just emit 'unsaved' to let parent know that sharing has changed.
       // It will be up to parent to call `mergeAndSave(entityId)` once there is
@@ -177,13 +179,13 @@ export default {
     emitUnsavedEvent() {
       this.$emit("unsaved", this.localSharedEntity);
     },
-    cancelEditSharedEntity: function(event) {
+    cancelEditSharedEntity: function() {
       this.localSharedEntity = this.sharedEntityCopy;
     },
-    openSharingSettingsModal: function(event) {
+    openSharingSettingsModal: function() {
       this.$refs.sharingSettingsModal.show();
     },
-    showSharingSettingsModal: function(event) {
+    showSharingSettingsModal: function() {
       this.sharedEntityCopy = this.localSharedEntity.clone();
       if (!this.users) {
         services.ServiceFactory.service("UserProfiles")
@@ -222,10 +224,18 @@ export default {
 <style scoped>
 button {
   background-color: white;
+  white-space: nowrap;
+}
+.share-button {
+  display: inline-block;
 }
 .share-button >>> .modal-share-settings .modal-body {
   max-height: 50vh;
   min-height: 300px;
   overflow: auto;
+}
+.share-button >>> .modal-dialog {
+  max-width: 800px;
+  width: 60vw;
 }
 </style>

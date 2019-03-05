@@ -1,6 +1,7 @@
 # Apache Airavata Django Portal
 
 [![Build Status](https://travis-ci.org/apache/airavata-django-portal.svg?branch=master)](https://travis-ci.org/apache/airavata-django-portal)
+[![Build Status](https://readthedocs.org/projects/apache-airavata-django-portal/badge/?version=latest)](https://apache-airavata-django-portal.readthedocs.io/en/latest/?badge=latest)
 
 The Airavata Django Portal is a web interface to the [Apache
 Airavata](http://airavata.apache.org/) API implemented using the Django web
@@ -16,6 +17,10 @@ also be used as a development environment.
 
 The Airavata Django Portal is developed with Python 3.6 but should also work
 with 3.4 and 3.5. You'll need one of these versions installed locally.
+
+You'll also need npm 3.6+ to build the JavaScript frontend code.
+Please install [the most recent LTS version of
+Node.js](https://nodejs.org/en/download/).
 
 1.  Checkout this project and create a virtual environment.
 
@@ -44,7 +49,13 @@ with 3.4 and 3.5. You'll need one of these versions installed locally.
     ./build_js.sh
     ```
 
-5.  Run the server
+5.  Load the default Wagtail CMS pages.
+
+    ```
+    python manage.py load_default_gateway
+    ```
+
+6.  Run the server
 
     ```
     python manage.py runserver
@@ -62,7 +73,16 @@ with 3.4 and 3.5. You'll need one of these versions installed locally.
 
 ## Documentation
 
-Documentation currently resides in the `docs` directory.
+Documentation currently is available at
+https://apache-airavata-django-portal.readthedocs.io/en/latest/ (built from
+the 'docs' directory).
+
+To build the documentation locally, first [set up a development
+environment](#setting-up-development-environment), then run the following in
+the root of the project:
+```
+mkdocs serve
+```
 
 ## Feedback
 

@@ -63,10 +63,6 @@ export default {
     value: {
       type: models.ApplicationDescriptionDefinition
     },
-    deploymentId: {
-      type: String,
-      required: true
-    },
     readonly: {
       type: Boolean,
       default: false
@@ -186,7 +182,7 @@ export default {
     }
   },
   watch: {
-    sharedEntity(newValue, oldValue) {
+    sharedEntity(newValue) {
       this.localSharedEntity = newValue.clone();
     }
   }

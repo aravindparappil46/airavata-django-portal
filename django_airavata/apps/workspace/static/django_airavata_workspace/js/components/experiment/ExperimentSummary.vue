@@ -1,10 +1,21 @@
 <template>
   <div>
     <div class="row">
-      <div class="col">
+      <div class="col-auto mr-auto">
         <h1 class="h4 mb-4">
           <slot name="title">Experiment Summary</slot>
         </h1>
+      </div>
+      <div class="col-auto">
+          <share-button :entity-id="experiment.experimentId" />
+          <b-link v-if="experiment.isEditable" class="btn btn-primary" :href="editLink">
+            Edit
+            <i class="fa fa-edit" aria-hidden="true"></i>
+          </b-link>
+          <b-btn variant="primary" @click="clone">
+            Clone
+            <i class="fa fa-copy" aria-hidden="true"></i>
+          </b-btn>
       </div>
     </div>
     <div class="row">
@@ -16,7 +27,15 @@
                 <tr>
                   <th scope="row">Name</th>
                   <td>
-                    <span :title="experiment.experimentId">{{ experiment.experimentName }}</span>
+                    <div :title="experiment.experimentId">{{ experiment.experimentName }}</div>
+                    <small class="text-muted">
+                    ID: {{ experiment.experimentId }}
+                    (<clipboard-copy-link :text="experiment.experimentId" :link-classes="['text-reset']">
+                      copy
+                      <span slot="icon"></span>
+                      <span slot="tooltip">Copied ID!</span>
+                    </clipboard-copy-link>)
+                    </small>
                   </td>
                 </tr>
                 <tr>
@@ -33,15 +52,7 @@
                 <tr>
                   <th scope="row">Outputs</th>
                   <td>
-                    <template v-for="output in localFullExperiment.outputDataProducts">
-                      <span v-if="output.downloadURL">
-                        <a :href="output.downloadURL">
-                          <i class="fa fa-download"></i>
-                          {{ output.filename }}
-                        </a>
-                      </span>
-                      <span v-else>{{ output.filename }}</span>
-                    </template>
+                    <data-product-viewer v-for="output in localFullExperiment.outputDataProducts" :data-product="output" class="data-product" :key="output.productUri"/>
                   </td>
                 </tr>
                 <!-- Going to leave this out for now -->
@@ -65,7 +76,7 @@
                   <th scope="row">Experiment Status</th>
                   <td>
                     <template v-if="localFullExperiment.experiment.isProgressing">
-                      <i class="fa fa-refresh fa-spin"></i>
+                      <i class="fa fa-sync-alt fa-spin"></i>
                       <span class="sr-only">Progressing...</span>
                     </template>
                     {{ localFullExperiment.experimentStatusName }}
@@ -81,7 +92,7 @@
                         <th>Status</th>
                         <th>Creation Time</th>
                       </thead>
-                      <tr v-for="(jobDetail, index) in localFullExperiment.jobDetails">
+                      <tr v-for="(jobDetail, index) in localFullExperiment.jobDetails" :key="jobDetail.jobId">
                         <td>{{ jobDetail.jobName }}</td>
                         <td>{{ jobDetail.jobId }}</td>
                         <td>{{ jobDetail.jobStatusStateName }}</td>
@@ -130,15 +141,8 @@
                 <tr>
                   <th scope="row">Inputs</th>
                   <td>
-                    <template v-for="input in localFullExperiment.inputDataProducts">
-                      <span v-if="input.downloadURL">
-                        <a :href="input.downloadURL">
-                          <i class="fa fa-download"></i>
-                          {{ input.filename }}
-                        </a>
-                      </span>
-                      <span v-else>{{ input.filename }}</span>
-                    </template>
+                    <data-product-viewer v-for="input in localFullExperiment.inputDataProducts"
+                      :data-product="input" :input-file="true" class="data-product" :key="input.productUri"/>
                   </td>
                 </tr>
                 <tr>
@@ -157,6 +161,9 @@
 
 <script>
 import { models, services } from "django-airavata-api";
+import { components } from "django-airavata-common-ui";
+import DataProductViewer from "./DataProductViewer.vue";
+import urls from "../../utils/urls";
 
 import moment from "moment";
 
@@ -177,7 +184,11 @@ export default {
       localFullExperiment: this.fullExperiment.clone()
     };
   },
-  components: {},
+  components: {
+    DataProductViewer,
+    "clipboard-copy-link": components.ClipboardCopyLink,
+    "share-button": components.ShareButton
+  },
   computed: {
     creationTime: function() {
       return moment(this.localFullExperiment.experiment.creationTime).fromNow();
@@ -194,6 +205,9 @@ export default {
       return this.localFullExperiment.jobDetails.map(jobDetail =>
         moment(jobDetail.creationTime).fromNow()
       );
+    },
+    editLink() {
+      return urls.editExperiment(this.experiment);
     }
   },
   methods: {
@@ -209,12 +223,19 @@ export default {
             !this.localFullExperiment.experiment.hasLaunched) ||
           this.localFullExperiment.experiment.isProgressing
         ) {
-          this.loadExperiment().then(exp => {
+          this.loadExperiment().then(() => {
             setTimeout(pollExperiment.bind(this), 3000);
           });
         }
       }.bind(this);
       setTimeout(pollExperiment, 3000);
+    },
+    clone() {
+      services.ExperimentService.clone({
+        lookup: this.experiment.experimentId
+      }).then(clonedExperiment => {
+        urls.navigateToEditExperiment(clonedExperiment);
+      })
     }
   },
   watch: {},
@@ -224,5 +245,8 @@ export default {
 };
 </script>
 
-<style>
+<style scoped>
+.data-product + .data-product {
+  margin-left: 0.5em;
+}
 </style>

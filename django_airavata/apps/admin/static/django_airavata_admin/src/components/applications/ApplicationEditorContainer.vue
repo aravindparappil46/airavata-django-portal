@@ -24,19 +24,19 @@
         />
         <router-view name="deployments" v-if="appDeployments" :deployments="appDeployments" @new="createNewDeployment" @delete="deleteApplicationDeployment"
         />
-        <router-view name="deployment" v-if="currentDeployment" v-model="currentDeployment" :shared-entity="currentDeploymentSharedEntity"
+        <router-view name="deployment" v-if="currentDeployment && currentDeploymentSharedEntity" v-model="currentDeployment" :shared-entity="currentDeploymentSharedEntity"
           @sharing-changed="deploymentSharingChanged" @input="currentDeploymentChanged" />
       </div>
     </div>
     <div class="row">
       <div class="col">
-        <b-button variant="primary" @click="saveAll" :disabled="readonly || !isDirty">
+        <b-button class="editor-button" variant="primary" @click="saveAll" :disabled="readonly || !isDirty">
           Save
         </b-button>
-        <delete-button v-if="id" :disabled="readonly" @delete="deleteApplication">
+        <delete-button class="editor-button" v-if="id" :disabled="readonly" @delete="deleteApplication">
           Are you sure you want to delete the {{ appModule ? appModule.appModuleName : "" }} application?
         </delete-button>
-        <b-button variant="secondary" @click="cancel">
+        <b-button class="editor-button" variant="secondary" @click="cancel">
           Cancel
         </b-button>
       </div>
@@ -45,7 +45,7 @@
 </template>
 
 <script>
-import { errors, models, services } from "django-airavata-api";
+import { errors, models, services, utils as apiUtils } from "django-airavata-api";
 import { components, notifications } from "django-airavata-common-ui";
 
 export default {
@@ -106,7 +106,7 @@ export default {
       if (this.id) {
         this.loadApplicationModule(this.id);
         this.loadApplicationInterface(this.id);
-        this.loadApplicationDeployments(this.id).then(appDeployments => {
+        this.loadApplicationDeployments(this.id).then(() => {
           this.initializeDeploymentEditing();
         });
       } else {
@@ -178,7 +178,7 @@ export default {
           return Promise.reject(error);
         });
     },
-    deleteApplicationModule(appModule) {
+    deleteApplicationModule() {
       const deleteModule = this.id
         ? services.ApplicationModuleService.delete({
             lookup: this.id
@@ -212,7 +212,7 @@ export default {
             throw error;
           }
         })
-        .catch(errors.UnhandledErrorDispatcher.reportUnhandledError);
+        .catch(apiUtils.FetchUtils.reportError);
     },
     createApplicationInterface(appInterface) {
       return services.ApplicationInterfaceService.create({
@@ -483,7 +483,7 @@ export default {
           })
         : Promise.resolve(this.appModule);
       const interfaceSave = moduleSave.then(
-        appModule =>
+        () =>
           this.appInterfaceIsDirty
             ? this.saveApplicationInterface(this.appInterface).catch(error => {
                 // Navigate to the route that has the error
@@ -495,8 +495,7 @@ export default {
               })
             : Promise.resolve(this.appInterface)
       );
-      const deploymentsSave = interfaceSave
-        .then(appInterface => {
+      interfaceSave.then(() => {
           return Promise.all(
             this.dirtyAppDeploymentComputeHostIds.map(computeHostId => {
               const deployment = this.appDeployments.find(
@@ -523,7 +522,7 @@ export default {
             })
           );
         })
-        .then(appDeployments => {
+        .then(() => {
           return Promise.all(
             this.dirtyAppDeploymentSharedEntityComputeHostIds.map(
               computeHostId => {
@@ -560,7 +559,7 @@ export default {
             )
           );
         })
-        .then(sharedEntities => {
+        .then(() => {
           notifications.NotificationList.add(
             new notifications.Notification({
               type: "SUCCESS",
@@ -592,7 +591,7 @@ export default {
     cancel() {
       this.$router.push({ path: "/applications" });
     },
-    deleteApplication(appModule) {
+    deleteApplication() {
       const deleteAllDeployments = this.appDeployments.map(dep =>
         this.deleteApplicationDeployment(dep)
       );
@@ -623,10 +622,13 @@ export default {
 };
 </script>
 
-<style>
+<style scoped>
 /* style the containing div, in base.html template */
 /* .main-content {
     background-color: #ffffff;
 } */
+.editor-button + .editor-button {
+  margin-left: 0.25em;
+}
 </style>
 

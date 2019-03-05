@@ -11,6 +11,7 @@ import BatchQueue from "./models/BatchQueue";
 import BatchQueueResourcePolicy from "./models/BatchQueueResourcePolicy";
 import CommandObject from "./models/CommandObject";
 import ComputeResourcePolicy from "./models/ComputeResourcePolicy";
+import DataProduct from "./models/DataProduct";
 import DataType from "./models/DataType";
 import Experiment from "./models/Experiment";
 import ExperimentState from "./models/ExperimentState";
@@ -30,8 +31,6 @@ import StoragePreference from "./models/StoragePreference";
 import SummaryType from "./models/SummaryType";
 import UserPermission from "./models/UserPermission";
 
-import ExperimentService from "./services/ExperimentService";
-import ExperimentSearchService from "./services/ExperimentSearchService";
 import FullExperimentService from "./services/FullExperimentService";
 import ProjectService from "./services/ProjectService";
 import UserProfileService from "./services/UserProfileService";
@@ -49,14 +48,14 @@ import FetchUtils from "./utils/FetchUtils";
 import PaginationIterator from "./utils/PaginationIterator";
 import StringUtils from "./utils/StringUtils";
 
-exports.errors = {
+const errors = {
   ErrorUtils,
   UnhandledError,
   UnhandledErrorDispatcher,
   UnhandledErrorDisplayList
 };
 
-exports.models = {
+const models = {
   ApplicationDeploymentDescription,
   ApplicationInterfaceDefinition,
   ApplicationModule,
@@ -65,6 +64,7 @@ exports.models = {
   BatchQueueResourcePolicy,
   CommandObject,
   ComputeResourcePolicy,
+  DataProduct,
   DataType,
   Experiment,
   ExperimentState,
@@ -85,7 +85,7 @@ exports.models = {
   UserPermission
 };
 
-exports.services = {
+const services = {
   ApplicationDeploymentService: ServiceFactory.service(
     "ApplicationDeployments"
   ),
@@ -94,15 +94,19 @@ exports.services = {
   CloudJobSubmissionService,
   ComputeResourceService: ServiceFactory.service("ComputeResources"),
   CredentialSummaryService: ServiceFactory.service("CredentialSummaries"),
-  ExperimentSearchService,
-  ExperimentService,
+  DataProductService: ServiceFactory.service("DataProducts"),
+  ExperimentSearchService: ServiceFactory.service("ExperimentSearch"),
+  ExperimentService: ServiceFactory.service("Experiments"),
   FullExperimentService,
-  GatewayResourceProfileService: ServiceFactory.service("GatewayResourceProfiles"),
+  GatewayResourceProfileService: ServiceFactory.service(
+    "GatewayResourceProfiles"
+  ),
   GlobusJobSubmissionService,
   GridFTPDataMovementService,
   GroupResourceProfileService: ServiceFactory.service("GroupResourceProfiles"),
   GroupService: ServiceFactory.service("Groups"),
   LocaJobSubmissionService,
+  ParserService: ServiceFactory.service("Parsers"),
   ProjectService,
   SCPDataMovementService,
   ServiceFactory,
@@ -115,8 +119,22 @@ exports.services = {
   UserProfileService
 };
 
-exports.utils = {
+const utils = {
   FetchUtils,
   PaginationIterator,
   StringUtils
+};
+
+export default {
+  errors,
+  models,
+  services,
+  utils
+};
+
+export {
+  errors,
+  models,
+  services,
+  utils
 };

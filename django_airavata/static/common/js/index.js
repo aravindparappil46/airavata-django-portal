@@ -1,5 +1,7 @@
 import ApplicationCard from "./components/ApplicationCard.vue";
 import AutocompleteTextInput from "./components/AutocompleteTextInput.vue";
+import ClipboardCopyButton from "./components/ClipboardCopyButton.vue";
+import ClipboardCopyLink from "./components/ClipboardCopyLink.vue";
 import ConfirmationDialog from "./components/ConfirmationDialog.vue";
 import DeleteButton from "./components/DeleteButton.vue";
 import DeleteLink from "./components/DeleteLink.vue";
@@ -20,10 +22,14 @@ import NotificationList from "./notifications/NotificationList";
 
 import * as utils from "./utils";
 
-exports.components = {
+import entry from "./entry";
+
+const components = {
   Pager,
   ApplicationCard,
   AutocompleteTextInput,
+  ClipboardCopyButton,
+  ClipboardCopyLink,
   ConfirmationDialog,
   DeleteButton,
   DeleteLink,
@@ -32,22 +38,40 @@ exports.components = {
   UnsavedChangesGuard
 };
 
-exports.errors = {
+const errors = {
   GlobalErrorHandler,
   ValidationErrors
 };
 
-exports.layouts = {
+const layouts = {
   ListLayout
 };
 
-exports.mixins = {
+const mixins = {
   VModelMixin
 };
 
-exports.notifications = {
+const notifications = {
   Notification,
   NotificationList
 };
 
-exports.utils = utils;
+export default {
+  components,
+  entry,
+  errors,
+  layouts,
+  mixins,
+  notifications,
+  utils
+};
+
+export {
+  components,
+  entry,
+  errors,
+  layouts,
+  mixins,
+  notifications,
+  utils
+};

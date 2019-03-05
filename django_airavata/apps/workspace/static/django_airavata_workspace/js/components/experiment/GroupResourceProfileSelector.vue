@@ -17,8 +17,7 @@
 </template>
 
 <script>
-import {models, services} from 'django-airavata-api'
-import {utils} from 'django-airavata-common-ui'
+import {services} from 'django-airavata-api'
 
 export default {
     name: 'group-resource-profile-selector',
@@ -63,8 +62,8 @@ export default {
             services.GroupResourceProfileService.list()
                 .then(groupResourceProfiles => {
                     this.groupResourceProfiles = groupResourceProfiles;
-                    if (this.groupResourceProfiles && this.groupResourceProfiles.length > 0) {
-                        // Automatically pick the first one for now
+                    if ((!this.value || !this.selectedValueInGroupResourceProfileList(groupResourceProfiles)) && this.groupResourceProfiles && this.groupResourceProfiles.length > 0) {
+                        // Automatically pick the first one for now if none selected
                         // TODO: automatically select the last one user selected
                         this.groupResourceProfileId = this.groupResourceProfiles[0].groupResourceProfileId;
                         this.emitValueChanged();
@@ -79,6 +78,9 @@ export default {
         emitValueChanged: function() {
             this.$emit('input', this.groupResourceProfileId);
         },
+        selectedValueInGroupResourceProfileList(groupResourceProfiles) {
+          return groupResourceProfiles.map(grp => grp.groupResourceProfileId).indexOf(this.value) >= 0;
+        }
     },
     watch: {
     }

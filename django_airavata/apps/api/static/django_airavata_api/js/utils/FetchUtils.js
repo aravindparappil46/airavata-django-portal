@@ -186,7 +186,7 @@ export default {
                 });
                 throw error;
               },
-              e => {
+              () => {
                 // In case JSON parsing fails
                 const error = new Error(response.statusText);
                 error.details = this.createErrorDetails({
@@ -207,11 +207,7 @@ export default {
       )
       .catch(error => {
         if (!ignoreErrors) {
-          UnhandledErrorDispatcher.reportError({
-            message: error.message,
-            error: error,
-            details: error.details
-          });
+          this.reportError(error);
         }
         throw error;
       });
@@ -228,5 +224,12 @@ export default {
       status,
       response: responseBody
     };
+  },
+  reportError(error) {
+    UnhandledErrorDispatcher.reportError({
+      message: error.message,
+      error: error,
+      details: error.details
+    });
   }
 };

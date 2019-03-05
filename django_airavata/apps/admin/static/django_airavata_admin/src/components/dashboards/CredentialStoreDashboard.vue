@@ -43,7 +43,6 @@
 import { services } from "django-airavata-api";
 import { components, layouts } from "django-airavata-common-ui";
 import moment from "moment";
-import ClipboardCopyLink from "../commons/ClipboardCopyLink.vue";
 import NewSSHCredentialModal from "../credentials/NewSSHCredentialModal.vue";
 import NewPasswordCredentialModal from "../credentials/NewPasswordCredentialModal.vue";
 
@@ -51,7 +50,7 @@ export default {
   components: {
     "delete-link": components.DeleteLink,
     "list-layout": layouts.ListLayout,
-    ClipboardCopyLink,
+    "clipboard-copy-link": components.ClipboardCopyLink,
     "new-password-credential-modal": NewPasswordCredentialModal,
     "new-ssh-credential-modal": NewSSHCredentialModal,
     "share-button": components.ShareButton
@@ -108,7 +107,7 @@ export default {
       this.$refs.newSSHCredentialModal.show();
     },
     createNewSSHCredential(data) {
-      services.CredentialSummaryService.createSSH({ data: data }).then(cred =>
+      services.CredentialSummaryService.createSSH({ data: data }).then(() =>
         this.fetchSSHKeys()
       );
     },
@@ -122,7 +121,7 @@ export default {
     },
     createNewPasswordCredential(data) {
       services.CredentialSummaryService.createPassword({ data: data }).then(
-        cred => this.fetchPasswordCredentials()
+        () => this.fetchPasswordCredentials()
       );
     },
     deletePasswordCredential(cred) {

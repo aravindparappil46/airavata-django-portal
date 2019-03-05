@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/1.10/ref/settings/
 
 import os
 
+from pkg_resources import iter_entry_points
+
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -45,6 +47,7 @@ INSTALLED_APPS = [
     'django_airavata.apps.api.apps.ApiConfig',
     'django_airavata.apps.groups.apps.GroupsConfig',
     'django_airavata.apps.maptool.apps.MapToolConfig',
+    'django_airavata.apps.dataparsers.apps.DataParsersConfig',
 
     # wagtail related apps
     'wagtail.contrib.forms',
@@ -66,7 +69,29 @@ INSTALLED_APPS = [
 
     # wagtail custom apps
     'django_airavata.wagtailapps.base.apps.BaseConfig',
+
+    # django-webpack-loader
+    'webpack_loader',
 ]
+
+# AppConfig instances from custom Django apps
+CUSTOM_DJANGO_APPS = []
+
+# Add any custom apps installed in the virtual environment
+# Essentially this looks for the entry_points metadata in all installed Python packages. The format of the metadata in setup.py is the following:
+#
+#    setuptools.setup(
+#        ...
+#        entry_points="""
+#    [airavata.djangoapp]
+#    dynamic_djangoapp = dynamic_djangoapp.apps:DynamicDjangoAppConfig
+#    """,
+#        ...
+#    )
+#
+for entry_point in iter_entry_points(group='airavata.djangoapp'):
+    CUSTOM_DJANGO_APPS.append(entry_point.load())
+    INSTALLED_APPS.append(entry_point.name)
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -209,6 +234,73 @@ AUTHENTICATION_OPTIONS = {
     #         'name': 'CILogon',
     #     }
     # ]
+}
+
+# Seconds each connection in the pool is able to stay alive. If open connection
+# has lived longer than this period, it will be closed.
+# (https://github.com/Thriftpy/thrift_connector)
+THRIFT_CLIENT_POOL_KEEPALIVE = 10
+
+# Webpack loader
+WEBPACK_LOADER = {
+    'COMMON': {
+        'BUNDLE_DIR_NAME': 'common/dist/',
+        'STATS_FILE': os.path.join(
+            BASE_DIR,
+            'django_airavata',
+            'static',
+            'common',
+            'dist',
+            'webpack-stats.json'),
+    },
+    'ADMIN': {
+        'BUNDLE_DIR_NAME': 'django_airavata_admin/dist/',
+        'STATS_FILE': os.path.join(
+            BASE_DIR,
+            'django_airavata',
+            'apps',
+            'admin',
+            'static',
+            'django_airavata_admin',
+            'dist',
+            'webpack-stats.json'),
+    },
+    'DATAPARSERS': {
+        'BUNDLE_DIR_NAME': 'django_airavata_dataparsers/dist/',
+        'STATS_FILE': os.path.join(
+            BASE_DIR,
+            'django_airavata',
+            'apps',
+            'dataparsers',
+            'static',
+            'django_airavata_dataparsers',
+            'dist',
+            'webpack-stats.json'),
+    },
+    'GROUPS': {
+        'BUNDLE_DIR_NAME': 'django_airavata_groups/dist/',
+        'STATS_FILE': os.path.join(
+            BASE_DIR,
+            'django_airavata',
+            'apps',
+            'groups',
+            'static',
+            'django_airavata_groups',
+            'dist',
+            'webpack-stats.json'),
+    },
+    'WORKSPACE': {
+        'BUNDLE_DIR_NAME': 'django_airavata_workspace/dist/',
+        'STATS_FILE': os.path.join(
+            BASE_DIR,
+            'django_airavata',
+            'apps',
+            'workspace',
+            'static',
+            'django_airavata_workspace',
+            'dist',
+            'webpack-stats.json'),
+    },
 }
 
 LOGGING = {
