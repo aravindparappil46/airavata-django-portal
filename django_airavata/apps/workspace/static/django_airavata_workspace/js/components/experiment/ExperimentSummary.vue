@@ -52,7 +52,8 @@
                 <tr>
                   <th scope="row">Outputs</th>
                   <td>
-                    <data-product-viewer v-for="output in localFullExperiment.outputDataProducts" :data-product="output" class="data-product" :key="output.productUri"/>
+                    <data-product-viewer v-for="output in localFullExperiment.outputDataProducts" :data-product="output" 
+                    class="data-product" :key="output.productUri"/>
                   </td>
                 </tr>
                 <!-- Going to leave this out for now -->
@@ -141,8 +142,20 @@
                 <tr>
                   <th scope="row">Inputs</th>
                   <td>
-                    <data-product-viewer v-for="input in localFullExperiment.inputDataProducts"
-                      :data-product="input" :input-file="true" class="data-product" :key="input.productUri"/>
+                      <ul class="input-list"> 
+                        <template v-if = "stringInputs.length > 0">
+                          <li v-for="input in stringInputs">
+                              {{input.name}} : {{input.value}}
+                          </li>
+                        </template>
+
+                        <template v-if = "localFullExperiment.inputDataProducts.length > 0">
+                          <li v-for="input in localFullExperiment.inputDataProducts">
+                             <data-product-viewer 
+                                :data-product="input" :input-file="true" class="data-product" :key="input.productUri"/>    
+                          </li>
+                        </template>
+                      </ul>
                   </td>
                 </tr>
                 <tr>
@@ -180,9 +193,11 @@ export default {
     }
   },
   data() {
+
     return {
       localFullExperiment: this.fullExperiment.clone()
     };
+
   },
   components: {
     DataProductViewer,
@@ -190,6 +205,11 @@ export default {
     "share-button": components.ShareButton
   },
   computed: {
+    stringInputs: function() {
+      return this.localFullExperiment.experiment.experimentInputs.filter(function (e) {
+          return e.type.value == 0
+      })
+    },
     creationTime: function() {
       return moment(this.localFullExperiment.experiment.creationTime).fromNow();
     },
@@ -212,6 +232,7 @@ export default {
   },
   methods: {
     loadExperiment: function() {
+
       return services.FullExperimentService.get(
         this.localFullExperiment.experiment.experimentId
       ).then(exp => (this.localFullExperiment = exp));
@@ -243,10 +264,15 @@ export default {
     this.initPollingExperiment();
   }
 };
+
 </script>
 
 <style scoped>
 .data-product + .data-product {
   margin-left: 0.5em;
+}
+.input-list {
+  padding-left: .5em;
+  margin-bottom: 0;
 }
 </style>
